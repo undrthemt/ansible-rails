@@ -1,0 +1,6 @@
+# ansible basic settings.
+ansible_connection: ssh
+ansible_ssh_user: webmaster
+ansible_ssh_pass: edit_this_password
+ansible_sudo_pass: edit_this_password
+

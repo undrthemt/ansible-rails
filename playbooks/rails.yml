@@ -1,0 +1,16 @@
+- hosts: rails
+  vars:
+    ruby_version: 2.2.3
+    rails_version: 4.2.6
+    document_root: /var/www/html
+    application_name: sample_app
+    application_root: "/var/www/{{ application_name }}"
+    rails_env: development
+  roles:
+    - basic
+    - rails-depends
+    - mysql
+    - rails
+    - ruby-mysql-config
+    - passenger
+

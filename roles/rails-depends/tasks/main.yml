@@ -1,0 +1,51 @@
+# install rails-dependencies packages
+# not including mysql
+
+- name: install development tools
+  sudo: yes 
+  yum:
+    name: "@Development tools"
+    state: present
+  tags:
+    - rails-depends
+
+- name: install ruby and passenger dependencies
+  sudo: yes
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - openssl-devel
+    - readline-devel
+    - zlib-devel
+    - curl-devel
+    - libyaml-devel
+    - libffi-devel
+    - git
+  tags:
+    - rails-depends
+
+- name: install apache and header files
+  sudo: yes
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - httpd
+    - httpd-devel
+  tags:
+    - rails-depends
+    - install-httpd
+
+- name: install ImageMagick, header files and japanese font
+  sudo: yes
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - ImageMagick
+    - ImageMagick-devel
+    - ipa-pgothic-fonts
+  tags:
+    - rails-depends
+

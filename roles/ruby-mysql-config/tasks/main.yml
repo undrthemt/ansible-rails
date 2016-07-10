@@ -1,0 +1,25 @@
+- name: configure /etc/my.cnf
+  sudo: yes
+  ini_file:
+    dest: /etc/my.cnf
+    section: "{{ item.section }}"
+    option: "{{ item.option }}"
+    value: utf8
+    state: present
+  with_items:
+    - { section: mysqld , option: character-set-server }
+    - { section: mysqld_safe , option: default-character-set }
+  tags:
+    - ruby-mysql-config
+
+#- name: install MySQL-python module for ansible
+#  sudo: yes
+#  yum:
+#    name: MySQL-python
+#    state: present
+#  tags:
+#    - ruby-mysql-config
+#
+#@todo ルートユーザのパスワード変更。匿名ユーザ削除。
+# change root user's password and remove anonymous user.
+

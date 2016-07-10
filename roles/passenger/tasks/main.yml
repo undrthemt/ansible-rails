@@ -1,0 +1,127 @@
+# install passenger
+- name: set passenger gem into Gemfile
+  sudo: no
+  lineinfile:
+    line: "gem \"passenger\""
+    state: present
+    dest: "{{ application_root }}/Gemfile"
+  tags:
+    - passenger
+    - set-passenger-into-gemfile
+
+- name: install passenger using bundle install
+  sudo: no
+  shell: /bin/bash -lc "bundle install --path vendor/bundle"
+  args:
+    chdir: "{{ application_root }}"
+  tags:
+    - passenger
+    - install-mod_passenger
+
+# get the installed path of mod_passenger.so.
+- name: get mod_passenger.so path
+  sudo: no
+  shell: /bin/bash -l bundle exec passenger-install-apache2-module --snippet | grep passenger_module | awk '{print $3}'
+  args:
+    chdir: "{{ application_root }}"
+  register: mod_passenger_path
+  changed_when: False
+  tags:
+    - passenger
+    - install-mod_passenger
+
+# check mod_passenger.so is already installed, useing registered variable.
+- name: check mod_passenger.so installed
+  sudo: no
+  shell: test -f "{{ mod_passenger_path.stdout }}"
+  register: mod_passenger_installed
+  failed_when: mod_passenger_installed.rc not in [0, 1]
+  changed_when: False
+  tags:
+    - passenger
+    - install-mod_passenger
+
+#- debug:
+#    msg: "{{ mod_passenger_path.stdout }}"
+#  tags:
+#    - install-mod_passenger
+
+- name: install mod_passenger.so with auto
+  sudo: no
+  shell: /bin/bash -lc "bundle exec passenger-install-apache2-module --auto"
+  args:
+    chdir: "{{ application_root }}"
+  when: mod_passenger_installed.rc == 1
+  tags:
+    - passenger
+    - install-mod_passenger
+
+# get the passenger info for httpd.conf.
+- name: get passenger snippet into passenger_snipet variable
+  sudo: no
+  shell: /bin/bash -lc "bundle exec passenger-install-apache2-module --snippet"
+  args:
+    chdir: "{{ application_root }}"
+  register: passenger_snippet
+  changed_when: False
+  tags:
+    - passenger
+    - passenger-config
+ 
+# template で上記の--snippetの情報を使っています。
+# passenger_snippet variable is used at template file.
+- name: configure httpd/conf.d/passenger.conf using passenger_snipet
+  sudo: yes
+  template:
+    src: passenger.conf
+    dest: /etc/httpd/conf.d/passenger.conf
+    owner: root
+    group: root
+    mode: 0644
+  tags:
+    - passenger
+    - passenger-config
+
+- name: change DocumentRoot to document_root variable directory
+  sudo: yes 
+  replace:
+    dest: /etc/httpd/conf/httpd.conf
+    regexp: '^DocumentRoot "/var/www/html"'
+    replace: 'DocumentRoot "{{ document_root }}/public"'
+  tags:
+    - passenger
+    - httpd-config
+
+- name: change document root directory to document_root variable directory
+  sudo: yes 
+  replace:
+    dest: /etc/httpd/conf/httpd.conf
+    regexp: '^<Directory "/var/www/html">'
+    replace: '<Directory "{{ document_root }}/public">'
+  tags:
+    - passenger
+    - httpd-config
+
+# @todo when production , use "bundle exec rake secret RAILS_ENV=production", copying output, and setup SetEnv SECRET_KEY_BASE.
+- name: export RAILS_ENV at httpd.conf
+  sudo: yes
+  lineinfile:
+    line: "{{ item }}"
+    state: present
+    dest: /etc/httpd/conf/httpd.conf
+  with_items:
+    - 'SetEnv RAILS_ENV "{{ rails_env }}"'
+  tags:
+    - passenger
+    - httpd-config
+
+- name: restart httpd
+  sudo: yes
+  service:
+    name: httpd
+    enabled: yes
+    state: restarted
+  tags:
+    - passenger
+    - passenger-config
+

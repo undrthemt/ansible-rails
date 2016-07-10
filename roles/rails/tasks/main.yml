@@ -1,0 +1,195 @@
+# install ruby using rbenv
+- name: register rbenv installed
+  sudo: no
+  stat:
+    path: "~/.rbenv/.git"
+  register: rbenv_installed
+  tags:
+    - install-ruby
+
+- name: create ~/.rbenv directory
+  sudo: no
+  file:
+    path: "~/.rbenv"
+    owner: "{{ ansible_ssh_user }}"
+    group: "{{ ansible_ssh_user }}"
+    mode: 0755
+    state: directory
+  tags:
+    - install-ruby
+    - create-dir
+
+- name: install rbenv
+  sudo: no
+  git:
+    repo: https://github.com/sstephenson/rbenv.git
+    dest: ~/.rbenv/
+  when: rbenv_installed.stat.exists == false
+  tags:
+    - install-ruby
+    - install-git
+
+- name: configure rbenv env into bash_profile
+  sudo: no
+  lineinfile:
+    line: "{{ item }}"
+    state: present
+    dest: ~/.bash_profile
+  with_items:
+    - 'export PATH="$HOME/.rbenv/bin:$PATH"'
+    - 'export PATH="$HOME/.rbenv/shims:$PATH"'
+    - 'eval "$(rbenv init -)"'
+  tags:
+    - install-ruby
+    - configure-rbenv-env
+
+- name: install ruby-build
+  sudo: no
+  git: 
+    repo: https://github.com/sstephenson/ruby-build.git
+    dest: ~/.rbenv/plugins/ruby-build/
+  when: rbenv_installed.stat.exists == false
+  tags:
+    - install-ruby
+    - install-ruby-build
+
+# bash に l オプションでログインシェルとして起動して実行する。
+# .bash_profileの環境変数を読み込むため。
+# bash with l option because of reading export PATH at .bash_profile.
+# @see http://www.bunkei-programmer.net/entry/2015/05/16/162020
+- name: Install ruby with ruby_version
+  sudo: no
+  shell: /bin/bash -lc "rbenv install {{ ruby_version }} && rbenv rehash && rbenv global {{ ruby_version }}"
+  when: rbenv_installed.stat.exists == false
+  tags:
+    - install-ruby
+
+- name: install ruby development tools
+  sudo: yes
+  yum:
+    name: "{{ item }}" 
+    state: present
+  with_items:
+    - ruby-devel
+    - rubygems
+  tags:
+    - install-ruby
+
+- name: install bundler
+  sudo: no
+  shell: /bin/bash -lc "rbenv exec gem install bundler && rbenv rehash"
+  tags:
+    - install-ruby
+    - install-bundler
+
+- name: chmod application_root directory
+  sudo: yes
+  file:
+    path: "{{ application_root }}"
+    owner: "{{ ansible_ssh_user }}"
+    group: "{{ ansible_ssh_user }}"
+    mode: 0755
+    state: directory
+  changed_when: False
+  tags:
+    - install-ruby
+    - chmod-dir
+
+- name: register root_application installed
+  sudo: no
+  stat:
+    path: "{{ application_root }}/.bundle"
+  register: root_application
+  tags:
+    - install-ruby
+
+- name: copy Gemfile at application_root
+  template:
+    src: Gemfile
+    dest: "{{ application_root }}/Gemfile"
+    mode: 0644
+  when: root_application.stat.exists == false
+  tags:
+    - install-ruby
+
+- name: install gem packages at vendor/bundle
+  sudo: no
+  shell: /bin/bash -lc "bundle install --path vendor/bundle"
+  args:
+    chdir: "{{ application_root }}"
+  when: root_application.stat.exists == false
+  tags:
+    - install-ruby
+
+- name: copy install shell at /tmp
+  sudo: no
+  template:
+    src: install-rails-app.sh
+    dest: "/tmp/install-rails-app.sh"
+    mode: 0770
+  when: root_application.stat.exists == false
+  tags:
+    - install-ruby
+    - install-rails-app
+ 
+- name: setup rails application at application_root with --skip-bundle
+  sudo: no
+  shell: /bin/bash -lc "/tmp/install-rails-app.sh"
+  when: root_application.stat.exists == false
+  tags:
+    - install-ruby
+    - install-rails-app
+
+- name: install gem packages at vendor/bundle
+  sudo: no
+  shell: /bin/bash -lc "bundle install --path vendor/bundle"
+  args:
+    chdir: "{{ application_root }}"
+  when: root_application.stat.exists == false
+  tags:
+    - install-ruby
+    - install-rails-app
+    - install-gem-packages
+
+- name: comment out therubyracer gem 
+  sudo: no
+  replace:
+    dest: "{{ application_root }}/Gemfile"
+    regexp: "^# gem 'therubyracer', platforms: :ruby"
+    replace: "gem 'therubyracer', platforms: :ruby"
+  when: root_application.stat.exists == false
+  tags:
+    - install-ruby
+    - install-rails-app
+ 
+- name: install therubyracer using bundle install
+  sudo: no
+  shell: /bin/bash -l bundle install
+  args:
+    chdir: "{{ application_root }}"
+  when: root_application.stat.exists == false
+  tags:
+    - install-ruby
+    - install-rails-app
+
+- name: delete document_root directory
+  sudo: yes
+  file:
+    path: "{{ document_root }}"
+    state: absent
+  tags:
+    - install-ruby
+    - delete-document_root
+    - install-rails-app
+
+- name: create applicaton_root to document_root symbolic link
+  sudo: yes
+  file:
+    src: "{{ application_root }}"
+    dest: "{{ document_root }}"
+    state: link
+  tags:
+    - install-ruby
+    - create-symbolic-link
+    - install-rails-app
+
